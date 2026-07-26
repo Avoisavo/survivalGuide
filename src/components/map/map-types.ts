@@ -10,4 +10,5 @@ export interface MapViewProps {
   routePolyline?: string;
   routeEndpoints?: { origin: LatLng; destination: LatLng } | null;
   recenterSignal: number;
+  onMapClick?: (location: LatLng) => void;
 }

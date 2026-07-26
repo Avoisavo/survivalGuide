@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader } from "@googlemaps/js-api-loader";
+import { importLibrary, setOptions } from "@googlemaps/js-api-loader";
 import { MarkerClusterer } from "@googlemaps/markerclusterer";
 import { useEffect, useRef, useState } from "react";
 import { clientEnv } from "@/config/env";
@@ -29,6 +29,7 @@ export default function GoogleMapView({
   routePolyline,
   routeEndpoints,
   recenterSignal,
+  onMapClick,
 }: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
@@ -38,18 +39,18 @@ export default function GoogleMapView({
   const straightLineRef = useRef<google.maps.Polyline | null>(null);
   const [ready, setReady] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const callbacksRef = useRef({ onMarkerClick, onMarkerHover, onUserMovedMap });
-  callbacksRef.current = { onMarkerClick, onMarkerHover, onUserMovedMap };
+  const callbacksRef = useRef({ onMarkerClick, onMarkerHover, onUserMovedMap, onMapClick });
+  useEffect(() => {
+    callbacksRef.current = { onMarkerClick, onMarkerHover, onUserMovedMap, onMapClick };
+  }, [onMarkerClick, onMarkerHover, onUserMovedMap, onMapClick]);
 
   useEffect(() => {
     let cancelled = false;
-    const loader = new Loader({
-      apiKey: clientEnv.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
-      version: "weekly",
-      libraries: ["geometry"],
+    setOptions({
+      key: clientEnv.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY,
+      v: "weekly",
     });
-    loader
-      .importLibrary("maps")
+    Promise.all([importLibrary("maps"), importLibrary("geometry")])
       .then(() => {
         if (cancelled || !containerRef.current) return;
         const map = new google.maps.Map(containerRef.current, {
@@ -63,6 +64,14 @@ export default function GoogleMapView({
         });
         mapRef.current = map;
         clustererRef.current = new MarkerClusterer({ map, markers: [] });
+        map.addListener("click", (event: google.maps.MapMouseEvent) => {
+          if (event.latLng && callbacksRef.current.onMapClick) {
+            callbacksRef.current.onMapClick({
+              lat: event.latLng.lat(),
+              lng: event.latLng.lng(),
+            });
+          }
+        });
         map.addListener("dragend", () => {
           const bounds = map.getBounds();
           if (bounds) {
@@ -78,14 +87,15 @@ export default function GoogleMapView({
         });
         setReady(true);
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         console.error("[map] failed to load Google Maps:", error);
         setLoadError("The map could not be loaded. Check your connection and refresh.");
       });
+    const markers = markersRef.current;
     return () => {
       cancelled = true;
       clustererRef.current?.clearMarkers();
-      markersRef.current.clear();
+      markers.clear();
       mapRef.current = null;
     };
   }, []);

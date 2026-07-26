@@ -36,6 +36,40 @@ export function getSavedPlaces(): SavedPlace[] {
   return read();
 }
 
+let snapshotRaw: string | null = null;
+let snapshotParsed: SavedPlace[] = [];
+
+/** Referentially-stable snapshot for useSyncExternalStore. */
+export function getSavedPlacesSnapshot(): SavedPlace[] {
+  if (typeof window === "undefined") return snapshotParsed;
+  const raw = window.localStorage.getItem(STORAGE_KEY) ?? "[]";
+  if (raw !== snapshotRaw) {
+    snapshotRaw = raw;
+    try {
+      const parsed = JSON.parse(raw);
+      snapshotParsed = Array.isArray(parsed) ? parsed : [];
+    } catch {
+      snapshotParsed = [];
+    }
+  }
+  return snapshotParsed;
+}
+
+const EMPTY: SavedPlace[] = [];
+
+export function getServerSavedPlacesSnapshot(): SavedPlace[] {
+  return EMPTY;
+}
+
+export function subscribeSavedPlaces(callback: () => void): () => void {
+  window.addEventListener("saved-places-changed", callback);
+  window.addEventListener("storage", callback);
+  return () => {
+    window.removeEventListener("saved-places-changed", callback);
+    window.removeEventListener("storage", callback);
+  };
+}
+
 export function isPlaceSaved(id: string): boolean {
   return read().some((p) => p.id === id);
 }

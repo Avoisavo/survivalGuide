@@ -20,6 +20,14 @@ function project(point: LatLng): { x: number; y: number } {
   return { x: Math.min(98, Math.max(2, x)), y: Math.min(98, Math.max(2, y)) };
 }
 
+function unproject(xPercent: number, yPercent: number): LatLng {
+  const b = DEFAULT_MAP_BOUNDS;
+  return {
+    lat: b.north - (yPercent / 100) * (b.north - b.south),
+    lng: b.west + (xPercent / 100) * (b.east - b.west),
+  };
+}
+
 export default function DemoMapView({
   places,
   selectedPlaceId,
@@ -27,6 +35,7 @@ export default function DemoMapView({
   onMarkerClick,
   onMarkerHover,
   routeEndpoints,
+  onMapClick,
 }: MapViewProps) {
   const routeLine = useMemo(() => {
     if (!routeEndpoints) return null;
@@ -38,6 +47,13 @@ export default function DemoMapView({
       className="relative h-full w-full overflow-hidden bg-[#e8ecef] dark:bg-[#1c2226]"
       role="application"
       aria-label="Demo map of the Sepang area"
+      onClick={(event) => {
+        if (!onMapClick) return;
+        const rect = event.currentTarget.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / rect.width) * 100;
+        const y = ((event.clientY - rect.top) / rect.height) * 100;
+        onMapClick(unproject(x, y));
+      }}
     >
       <svg className="absolute inset-0 h-full w-full" aria-hidden>
         <defs>

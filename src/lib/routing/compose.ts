@@ -131,35 +131,39 @@ export function composeRoute(legs: RouteLeg[], options: ComposeOptions): RouteOp
 }
 
 /**
- * Pick which route cards to show. A kind is only surfaced when the data
- * supporting it exists (e.g. no "cheapest" card without any cost data).
+ * Assign each alternative a unique, data-backed card label. Curated
+ * race-day routes keep their label; the quickest remaining route becomes
+ * "fastest"; the rest are labelled by their strongest attribute — and
+ * "cheapest" is only ever used when cost data actually exists.
  */
 export function assignRouteKinds(routes: RouteOption[]): RouteOption[] {
   if (routes.length === 0) return [];
   const result = routes.map((r) => ({ ...r }));
+  const unassigned = new Set(result.filter((r) => r.kind !== "race-day"));
 
-  const byDuration = [...result].sort(
+  const take = (
+    candidates: RouteOption[],
+    compare: (a: RouteOption, b: RouteOption) => number,
+    kind: RouteOption["kind"],
+  ) => {
+    if (candidates.length === 0) return;
+    const winner = [...candidates].sort(compare)[0];
+    winner.kind = kind;
+    unassigned.delete(winner);
+  };
+
+  take(
+    [...unassigned],
     (a, b) => a.totalDurationMinutes - b.totalDurationMinutes,
+    "fastest",
   );
-  const fastest = byDuration[0];
-  fastest.kind = fastest.kind === "race-day" ? fastest.kind : "fastest";
-
-  const withCost = result.filter((r) => r.estimatedCostMin !== undefined);
-  if (withCost.length > 1) {
-    const cheapest = [...withCost].sort(
-      (a, b) => (a.estimatedCostMin ?? 0) - (b.estimatedCostMin ?? 0),
-    )[0];
-    if (cheapest !== fastest && cheapest.kind !== "race-day") {
-      cheapest.kind = "cheapest";
-    }
-  }
-
-  const leastWalking = [...result].sort(
-    (a, b) => a.totalWalkingMeters - b.totalWalkingMeters,
-  )[0];
-  if (leastWalking !== fastest && leastWalking.kind === fastest.kind) {
-    leastWalking.kind = "least-walking";
-  }
+  take(
+    [...unassigned].filter((r) => r.estimatedCostMin !== undefined),
+    (a, b) => (a.estimatedCostMin ?? 0) - (b.estimatedCostMin ?? 0),
+    "cheapest",
+  );
+  take([...unassigned], (a, b) => a.totalWalkingMeters - b.totalWalkingMeters, "least-walking");
+  take([...unassigned], (a, b) => a.transfers - b.transfers, "fewest-transfers");
 
   return result;
 }

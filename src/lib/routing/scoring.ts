@@ -1,6 +1,5 @@
 import {
   DEFAULT_ROUTE_WEIGHTS,
-  type RouteOption,
   type RouteScoreBreakdown,
   type RouteWeights,
 } from "@/types/route";
